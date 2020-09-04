@@ -13,7 +13,11 @@ server_name = socket.gethostbyname(sys.argv[1])
 
 client_socket.connect((server_name, server_port))
 
-client_socket.send("testclient".encode())
-response = client_socket.recv(1024)
-print('from server: ', response.decode())
+input_client = input("Say something ")
+while input_client.lower().strip() != 'bye':
+    client_socket.sendall(input_client.encode())
+    response = client_socket.recv(1024)
+    print('from server: ', response.decode())
+    input_client = input("Say something ")
+
 client_socket.close()
