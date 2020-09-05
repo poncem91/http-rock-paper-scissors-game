@@ -26,24 +26,26 @@ print("Welcome to a game of Rock, Paper, Scissors!")
 while True:
     if not game_started:
         client_socket.sendall(get_request("/start-game").encode("utf-8"))
-        http_response = client_socket.recv(1024)
-        response_status = http_response[1]
+        http_response = client_socket.recv(1024).decode("utf-8")
+        response_list = http_response.split(" ")
+        response_status = response_list[1]
         if response_status == "200":
             game_started = True
 
-    input_client = input("Commands:\nR - Rock\nP - Paper\nS - Scissors\nRESET - Reset Game\nQ - Quit\n")
+    input_client = input("Commands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPS - Get current "
+                         "play score\nRESET - Reset Game\nQ - Quit\n")
 
     if input_client.upper() == "Q":
         client_socket.sendall(get_request("/quit-game").encode("utf-8"))
         break
 
-    elif input_client.upper() == "R":
-        pass
+    elif input_client.upper() == "GS":
+        client_socket.sendall((get_request("/gamescore").encode("utf-8")))
 
     elif input_client.upper() == "S":
         client_socket.sendall(input_client.encode("utf-8"))
-    response = client_socket.recv(1024)
-    print('from server: ', response.decode("utf-8"))
-    input_client = input("Say something ")
+
+    http_response = client_socket.recv(1024).decode("utf-8")
+    print('from server:\n' + http_response)
 
 client_socket.close()

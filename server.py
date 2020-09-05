@@ -28,7 +28,7 @@ def client_thread(connection, player_address):
         request_method = request_list[0]
         request_url = request_list[1]
         print("Player", player_address, "sent a", request_method, "request to", request_url)
-        response = ""
+        response_ok_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
 
         if request_url == "/start-game":
             with open("game_file.txt", "r") as game_file:
@@ -41,10 +41,14 @@ def client_thread(connection, player_address):
             if count == 1:
                 print("Waiting for second player...")
 
-            response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n"
+            response = response_ok_header
 
         if request_url == "/quit-game":
             open("game_file.txt", "w").close()
+
+        if request_url == "/gamescore":
+            with open("game_file.txt", "r") as game_file:
+                response = response_ok_header + game_file.read() + "\r\n\r\n"
 
         connection.sendall(response.encode("utf-8"))
     connection.close()
