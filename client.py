@@ -20,8 +20,9 @@ def main():
     client_socket.connect((server_name, server_port))
 
     print("Welcome to a game of Rock, Paper, Scissors!")
+    print("\nBest out of 3 wins the game.")
     print("\nCommands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPR - Get play "
-          "result\nRESET - Reset Game\nQ - Quit\n? - Show Commands\n")
+          "result\nN - Next play\nRESET - Reset Game\nQ - Quit\n? - Show Commands")
 
     while True:
         http_response = ""
@@ -35,9 +36,9 @@ def main():
             if response_status == "200":
                 game_started = True
                 player_id = response_list[5]
-                print("You are player #", player_id)
+                print("\nYou are player #", player_id)
             else:
-                print("There was an error starting the game")
+                print("\nThere was an error starting the game")
                 break
 
         input_client = input("\nCommand: ")
@@ -46,6 +47,18 @@ def main():
         if input_client.upper() == "Q":
             client_socket.sendall(get_request("/quit-game", server_name).encode("utf-8"))
             break
+
+        # prints commands
+        elif input_client == "?":
+            print("\nCommands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPR - Get play "
+                  "result\nN - Next play\nRESET - Reset Game\nQ - Quit\n? - Show Commands")
+
+        elif input_client.upper() == "N":
+            if not play_thrown:
+                print("You must first make your move for the current play before moving onto the next one")
+            else:
+                play_thrown = False
+                play_count += 1
 
         # request game score
         elif input_client.upper() == "GS":
@@ -62,7 +75,7 @@ def main():
             except IndexError:
                 print("Error: Could not retrieve game score. Exiting game.")
                 break
-            print("\nGame Score - WINS-LOSES-TIES\n")
+            print("\nGame Score - WINS-LOSES-TIES")
             if player_id == "1":
                 print("Your score:", player_1_score)
                 print("Opponent score:", player_2_score)
@@ -72,31 +85,29 @@ def main():
 
         # send Rock play
         elif input_client.upper() == "R":
-            successful_play = send_play("R", server_name, player_id, client_socket)
+            successful_play = send_play("R", server_name, player_id, client_socket, play_count)
             if successful_play:
                 play_thrown = True
-                play_count += 1
 
         # send Paper play
         elif input_client.upper() == "P":
-            successful_play = send_play("P", server_name, player_id, client_socket)
+            successful_play = send_play("P", server_name, player_id, client_socket, play_count)
             if successful_play:
                 play_thrown = True
-                play_count += 1
 
         # send Scissors play
         elif input_client.upper() == "S":
-            successful_play = send_play("S", server_name, player_id, client_socket)
+            successful_play = send_play("S", server_name, player_id, client_socket, play_count)
             if successful_play:
                 play_thrown = True
-                play_count += 1
 
         # gets play result
         elif input_client.upper() == "PR":
             if not play_thrown:
                 print("You haven't made a move yet. Please make a move first")
             else:
-                client_socket.sendall(get_request("/play", server_name).encode("utf-8"))
+                url = "/play?id=" + str(play_count)
+                client_socket.sendall(get_request(url, server_name).encode("utf-8"))
                 print("\nPlease wait...\n")
                 http_response = client_socket.recv(1024).decode("utf-8")
                 response_list = http_response.split()
@@ -114,6 +125,9 @@ def main():
                 elif player_result == "T":
                     print("You tied!")
 
+        else:
+            print("\nPlease enter a valid command. Enter '?' to see the list of possible commands")
+
     client_socket.close()
 
 
@@ -121,12 +135,12 @@ def get_request(url, server):
     return "GET " + url + " HTTP/1.1\r\nHost: " + server + "\r\nAccept: text/html\r\n\r\n"
 
 
-def post_request(url, server, player, move):
-    return "POST " + url + " HTTP/1.1\r\nHost: " + server + "\r\nContent-Type: text/html\r\n\r\nplayer=" + player + "&move=" + move
+def post_request(url, server, player, move, p_id):
+    return "POST " + url + " HTTP/1.1\r\nHost: " + server + "\r\nContent-Type: text/html\r\n\r\nplayer=" + player + "&move=" + move + "&id=" + str(p_id)
 
 
-def send_play(play, server, player, c_socket):
-    c_socket.sendall(post_request("/play", server, player, play).encode("utf-8"))
+def send_play(play, server, player, c_socket, play_id):
+    c_socket.sendall(post_request("/play", server, player, play, play_id).encode("utf-8"))
     http_response = c_socket.recv(1024).decode("utf-8")
     response_list = http_response.split()
     response_status = response_list[1]

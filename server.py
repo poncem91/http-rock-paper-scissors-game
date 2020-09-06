@@ -43,10 +43,6 @@ def client_thread(connection, player_address):
         full_request_url = request_list[1]
         request_url = full_request_url.split("?")[0]
 
-        # if parameters have been passed as a query string it stores them separately
-        if len(full_request_url.split("?")) > 1:
-            request_url_params = full_request_url.split("?")[1]
-
         print(player_address, "sent a", request_method, "request to", request_url)
 
         response_ok_header = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n"
@@ -56,8 +52,8 @@ def client_thread(connection, player_address):
                 game_data = {'player_count': 1,
                              'player_1': {'W': 0, 'L': 0, 'T': 0},
                              'player_2': {'W': 0, 'L': 0, 'T': 0},
-                             'current_play': [None, None],
-                             'current_play_result': None,
+                             'plays': {},
+                             'plays_result': {},
                              'reset': [False, False]}
                 with open("game_file.txt", "wb") as game_file:
                     pickle.dump(game_data, game_file)
@@ -97,31 +93,38 @@ def client_thread(connection, player_address):
                 except IndexError:
                     print("Missing POST body")
                     break
+
                 params = request_body.split("&")
                 player_num = int(params[0].split("=")[1])
                 move = params[1].split("=")[1]
+                play_id = params[2].split("=")[1]
+
                 with open("game_file.txt", "rb") as game_file:
                     game_data = pickle.load(game_file)
 
+                # initializes current play if it doesn't yet exist in plays dictionary
+                if play_id not in game_data["plays"]:
+                    game_data["plays"][play_id] = [None, None]
+
                 # only allows the move to be updated if there isn't a move for that play yet
-                if game_data["current_play"][player_num - 1] is None:
+                if game_data["plays"][play_id][player_num - 1] is None:
 
                     # sets current play's move
-                    game_data["current_play"][player_num - 1] = move
+                    game_data["plays"][play_id][player_num - 1] = move
 
                     # updates file
                     with open("game_file.txt", "wb") as game_file:
                         pickle.dump(game_data, game_file)
 
                     print("Current play updated to... ", end='')
-                    print(game_data["current_play"])
+                    print(game_data["plays"][play_id])
 
                     response = response_ok_header
 
                     # if both plays are in it calculates the result and updates game file
-                    if game_data["current_play"][0] is not None and game_data["current_play"][1] is not None:
-                        player_1_move = game_data["current_play"][0]
-                        player_2_move = game_data["current_play"][1]
+                    if game_data["plays"][play_id][0] is not None and game_data["plays"][play_id][1] is not None:
+                        player_1_move = game_data["plays"][play_id][0]
+                        player_2_move = game_data["plays"][play_id][1]
 
                         if player_1_move == "R" and player_2_move == "P":
                             result = "L-W"
@@ -143,7 +146,7 @@ def client_thread(connection, player_address):
                         result_player_2 = result.split("-")[1]
                         game_data["player_1"][result_player_1] += 1
                         game_data["player_2"][result_player_2] += 1
-                        game_data["current_play_result"] = result
+                        game_data["plays_result"][play_id] = result
                         with open("game_file.txt", "wb") as game_file:
                             pickle.dump(game_data, game_file)
 
@@ -153,13 +156,19 @@ def client_thread(connection, player_address):
 
             # GET request to /play path will return the play score
             elif request_method == "GET":
+                try:
+                    play_id = full_request_url.split("=")[1]
+                except IndexError:
+                    print("Missing play ID")
+                    break
+
                 with open("game_file.txt", "rb") as game_file:
                     game_data = pickle.load(game_file)
 
-                if game_data["current_play_result"] is None:
+                if play_id not in game_data["plays_result"]:
                     print("Waiting for both players to have made a move...")
                     counter = 0
-                    while game_data["current_play_result"] is None and counter < 50:
+                    while play_id not in game_data["plays_result"] and counter < 50:
                         time.sleep(3)
                         with open("game_file.txt", "rb") as game_file:
                             game_data = pickle.load(game_file)
@@ -168,8 +177,8 @@ def client_thread(connection, player_address):
                         print("Error: Request Timeout while waiting for player to make a move")
                         response = "HTTP/1.1 408 Request Timeout\r\nContent-Type: text/html\r\n\r\n"
 
-                if game_data["current_play_result"] is not None:
-                    result = game_data["current_play_result"]
+                if play_id in game_data["plays_result"]:
+                    result = game_data["plays_result"][play_id]
                     print("Requested play result is:", result)
 
                     response = response_ok_header + result
