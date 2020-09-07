@@ -3,7 +3,6 @@ import sys
 from _thread import *
 import json
 import os
-import time
 import glob
 
 
