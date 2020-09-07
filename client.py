@@ -37,7 +37,7 @@ def main():
 
         # quit application
         if input_client.upper() == "Q":
-            requests.get(server_url + "/game/quit")
+            requests.delete(server_url + "/game")
             sys.exit()
 
         # prints commands
@@ -49,8 +49,13 @@ def main():
             if not play_thrown:
                 print("You must first make your move for the current play before moving onto the next one")
             else:
-                play_thrown = False
-                play_id += 1
+                response = requests.get(server_url + "/game/play/" + str(play_id) + ".json")
+                play_results = response.json()
+                if play_results["done"]:
+                    play_thrown = False
+                    play_id += 1
+                else:
+                    print("The current play is still in progress. Please wait until it's done to go to the next play.")
 
         # request game score
         elif input_client.upper() == "GS":
