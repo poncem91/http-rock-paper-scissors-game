@@ -83,11 +83,6 @@ def client_thread(connection, player_address):
         return
 
 
-def get_player_score(num, game_data):
-    player = "player_" + str(num)
-    return str(game_data[player]["W"]) + "-" + str(game_data[player]["L"]) + "-" + str(game_data[player]["T"])
-
-
 def clear_game_env():
     # deletes game data files from previous game if they exist
     files = glob.glob("game/play/*")
