@@ -28,7 +28,8 @@ def main():
     server_socket.listen(2)
     print("Server", server_name, "at port", server_port, "ready to receive.")
 
-    clear_game_env()
+    # clears any game data that might've been saved from previous games
+    clear_game_data()
 
     while True:
         connection_socket, address = server_socket.accept()
@@ -41,35 +42,97 @@ def client_thread(connection, player_address):
     # parses HTTP request
     request_list = client_request.split()
     request_method = request_list[0]
-    full_request_url = request_list[1]
-    request_url = full_request_url.split("?")[0]
+    full_request_url = request_list[1]  # including any query string parameters
+    request_url = full_request_url.split("?")[0]  # not including any query string parameters
 
     if request_url == "/game":
+
+        # handles GET /game requests
         if request_method == "GET":
             start_game(connection, player_address, client_request)
             return
 
+        # handles DELETE /game requests
         elif request_method == "DELETE":
-            clear_game_env()
+            if not os.path.isfile("game/data.json"):
+                connection.sendall(RESPONSE_NOT_FOUND.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, RESPONSE_NOT_FOUND)
+                return
+
+            with open("game/data.json", "r") as game_file:
+                game_data = json.load(game_file)
+
+            # checks if both players have issued a reset request before resetting game or allows resets if there is only
+            # one player currently in the game
+            if game_data["reset"][0] and game_data["reset"][1] or game_data["player_count"] <= 1:
+                clear_game_data()
+                response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER
+                connection.sendall(response.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, response)
+                return
+
+            # if both players haven't issued a reset request, there is a conflict in the request and sends 409 code
+            else:
+                connection.sendall(RESPONSE_CONFLICT.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, RESPONSE_CONFLICT)
+
+        elif request_method == "PATCH":
+
+            if not os.path.isfile("game/data.json"):
+                connection.sendall(RESPONSE_NOT_FOUND.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, RESPONSE_NOT_FOUND)
+                return
+
+            try:
+                params = full_request_url.split("?")[1].split("&")
+                player_id = params[0].split("=")[1]
+                key = params[1].split("=")[0]
+                value = params[1].split("=")[1]
+            except IndexError:
+                connection.sendall(RESPONSE_BAD_REQUEST.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, RESPONSE_BAD_REQUEST)
+                return
+
+            with open("game/data.json", "r") as game_file:
+                game_data = json.load(game_file)
+
+            game_data[key][int(player_id) - 1] = value
+
+            with open("game/data.json", "w") as game_file:
+                json.dump(game_data, game_file)
+
             response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER
             connection.sendall(response.encode("utf-8"))
             connection.close()
             print_server_log(player_address, client_request, response)
             return
 
+    # handles GET /game/data.json requests
     elif request_url == "/game/data.json":
         send_file(connection, player_address, client_request, "game/data.json")
         return
 
+    # handles requests for /game/play/{play_id}.json
     elif "/game/play" in request_url:
 
-        # POST request to /play path will set a move for the play
+        # handles POST /game/play/{play_id}.json requests to make a play move
         if request_method == "POST":
-            params = full_request_url.split("?")[1].split("&")
+            try:
+                params = full_request_url.split("?")[1].split("&")
+            except IndexError:
+                connection.sendall(RESPONSE_BAD_REQUEST.encode("utf-8"))
+                connection.close()
+                print_server_log(player_address, client_request, RESPONSE_BAD_REQUEST)
+                return
             make_move(connection, player_address, client_request, params)
             return
 
-        # GET request to /play path will return the play score
+        # handles GET /game/play/{play_id}.json requests to get play file
         elif request_method == "GET":
             file_path = request_url[1:]
             send_file(connection, player_address, client_request, file_path)
@@ -83,8 +146,8 @@ def client_thread(connection, player_address):
         return
 
 
-def clear_game_env():
-    # deletes game data files from previous game if they exist
+# deletes game data files
+def clear_game_data():
     files = glob.glob("game/play/*")
     for file in files:
         os.remove(file)
@@ -92,6 +155,7 @@ def clear_game_env():
         os.remove("game/data.json")
 
 
+# prints server request-response logs
 def print_server_log(address, request, response):
     request_first_line = request.split("\r\n")[0]
     response_status_code = response.split()[1]
@@ -99,7 +163,9 @@ def print_server_log(address, request, response):
     print(console_log)
 
 
+# starts game for player client
 def start_game(connection, address, request):
+    # creates game data file if it doesn't yet exist
     if not os.path.isfile("game/data.json"):
         game_data = {'player_count': 1,
                      'player_1': {'W': 0, 'L': 0, 'T': 0},
@@ -107,18 +173,22 @@ def start_game(connection, address, request):
                      'reset': [False, False]}
         with open("game/data.json", "w") as game_file:
             json.dump(game_data, game_file)
+
+    # otherwise it updates game file with new player
     else:
         with open("game/data.json", "r") as game_file:
             game_data = json.load(game_file)
-            if game_data["player_count"] >= 2:
-                response = RESPONSE_CONFLICT + "Too many connected players."
-                connection.sendall(response.encode("utf-8"))
-                connection.close()
-                print_server_log(address, request, response)
-                return
-            game_data["player_count"] += 1
+
+        # only allows a maximum of 2 players
+        if game_data["player_count"] >= 2:
+            response = RESPONSE_CONFLICT + "Too many connected players."
+            connection.sendall(response.encode("utf-8"))
+            connection.close()
+            print_server_log(address, request, response)
+            return
 
         with open("game/data.json", "w") as game_file:
+            game_data["player_count"] += 1
             json.dump(game_data, game_file)
 
     response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + str(game_data["player_count"])
@@ -127,6 +197,7 @@ def start_game(connection, address, request):
     print_server_log(address, request, response)
 
 
+# makes and saves play move
 def make_move(connection, address, request, params):
     try:
         play_id = params[0].split("=")[1]
@@ -140,6 +211,7 @@ def make_move(connection, address, request, params):
 
     file_path = "game/play/" + play_id + ".json"
 
+    # retrieves play data if existing file exists, otherwise creates a new play data
     if os.path.isfile(file_path):
         with open(file_path, "r") as play_file:
             play_data = json.load(play_file)
@@ -168,13 +240,14 @@ def make_move(connection, address, request, params):
         if play_data["moves"][0] is not None and play_data["moves"][1] is not None:
             process_play(file_path, play_data)
 
-    # otherwise it sends a 409 error code
+    # if player has already made a move for this play it sends a 409 error code
     else:
         connection.sendall(RESPONSE_CONFLICT.encode("utf-8"))
         connection.close()
         print_server_log(address, request, RESPONSE_CONFLICT)
 
 
+# processes play results and updates play and game files
 def process_play(file_path, play_data):
     player_1_move = play_data["moves"][0]
     player_2_move = play_data["moves"][1]
@@ -209,7 +282,9 @@ def process_play(file_path, play_data):
         json.dump(game_data, game_file)
 
 
+# sends file to client given a file path
 def send_file(connection, address, request, file_path):
+    # if requested file doesn't exist, sends 404 code
     if not os.path.isfile(file_path):
         connection.sendall(RESPONSE_NOT_FOUND.encode("utf-8"))
         connection.close()
@@ -223,6 +298,7 @@ def send_file(connection, address, request, file_path):
     connection.sendall(response.encode("utf-8"))
     connection.close()
     print_server_log(address, request, response)
+
 
 
 if __name__ == "__main__":
