@@ -1,9 +1,9 @@
+import glob
+import json
+import os
 import socket
 import sys
 from _thread import *
-import json
-import os
-import glob
 
 
 def main():
