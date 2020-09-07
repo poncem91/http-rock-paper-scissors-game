@@ -20,14 +20,16 @@ def main():
 
     print("Welcome to a game of Rock, Paper, Scissors!")
     print("\nCommands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPR - Get play "
-          "result\nN - Next play\nSTART - Start Game\nRESET - Reset Game\nQ - Quit\n? - Show Commands")
+          "result\nN - Next play\nSTART - Start Game\nRESET - Resets/Ends Game\nQ - Quit\n? - Show Commands")
     print("\nEnter START to start a game\n")
 
     while True:
 
         input_client = input("\nCommand: ")
 
+        # starts a new game
         if input_client.upper() == "START":
+
             # setup game
             if not game_started:
                 response = requests.get(server_url + "/game")
@@ -36,14 +38,12 @@ def main():
                     player_id = response.text
                     print("\nBest out of 3 wins the game.")
                     print("\nYou are player #", player_id)
+                    print("\nYou are on play #", (play_id + 1))
                 else:
                     sys.exit("There was an error starting the game. Exiting application...")
             else:
                 print("\nYou already have a game in process.")
             continue
-
-        if game_started:
-            print("\nYou are on play #", (play_id + 1))
 
         # quit application
         if input_client.upper() == "Q":
@@ -51,26 +51,35 @@ def main():
             if response.status_code != 404:
                 print("\nYou must first reset the game before quitting.")
                 continue
-            print("\nBye!")
+            print("\nBye!\n")
             sys.exit()
 
         # prints commands
         elif input_client == "?":
             print("\nCommands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPR - Get play "
-                  "result\nN - Next play\nSTART - Start Game\nRESET - Reset Game\nQ - Quit\n? - Show Commands")
+                  "result\nN - Next play\nSTART - Start Game\nRESET - Resets/Ends Game\nQ - Quit\n? - Show Commands")
 
+        # command to move on to the next play
         elif input_client.upper() == "N":
             if not game_started:
                 print("\nPlease start a game first.")
                 continue
             if not play_thrown:
                 print("\nYou must first make your move for the current play before moving onto the next one")
+
+            # if the 3 plays have been played, it doesn't allow the player to move onto a next play
+            elif play_id >= 2:
+                print("\nYou have already played the 3 plays of the game.")
+                print("To view game score and winner use the command 'GS'")
+                print("Otherwise to start a new game, 'RESET' the current game, and 'START' a new one")
             else:
                 response = requests.get(server_url + "/game/play/" + str(play_id) + ".json")
                 play_results = response.json()
                 if play_results["done"]:
                     play_thrown = False
                     play_id += 1
+                    print("\nYou are on play #", (play_id + 1))
+                    continue
                 else:
                     print(
                         "\nThe current play is still in progress. Please wait until it's done to go to the next play.")
@@ -85,18 +94,35 @@ def main():
                 print("Error: Could not retrieve game score.")
                 continue
             try:
-                player_1_score = response.json()["player_1"]
-                player_2_score = response.json()["player_2"]
+                current_player = "player_" + player_id
+                opponent_player = "player_" + ("2" if player_id == "1" else "1")
+                current_player_score = response.json()[current_player]
+                opponent_player_score = response.json()[opponent_player]
             except IndexError:
                 print("Error: Could not retrieve game score.")
                 continue
             print("\nGame Score")
-            if player_id == "1":
-                print("Your score:", str(player_1_score)[2:-1])
-                print("Opponent score:", str(player_2_score)[2:-1])
-            else:
-                print("Your score:", player_2_score)
-                print("Opponent score:", player_1_score)
+
+            formatted_current_player_score = "Wins: " + str(current_player_score["W"]) + ", Loses: " + str(
+                current_player_score["L"]) + ", Ties: " + str(current_player_score["T"])
+            formatted_opponent_player_score = "Wins: " + str(opponent_player_score["W"]) + ", Loses: " + str(
+                opponent_player_score["L"]) + ", Ties: " + str(opponent_player_score["T"])
+
+            print("Your score:", formatted_current_player_score)
+            print("Opponent score:", formatted_opponent_player_score)
+
+            play_status = "completed" if ((play_id + 1) == response.json()["finished_plays"]) else "in progress"
+
+            print("Play", (play_id + 1), play_status)
+
+            # if game has ended, it prints the overall result of the game (best of 3)
+            if play_status == "completed" and play_id == 2:
+                if current_player_score["W"] > opponent_player_score["W"]:
+                    print("\nYou won the game!")
+                if current_player_score["W"] < opponent_player_score["W"]:
+                    print("\nYou lost the game...")
+                else:
+                    print("\nThe game was tied.")
 
         # send Rock play
         elif input_client.upper() == "R":
@@ -135,6 +161,7 @@ def main():
                 continue
 
             response = requests.get(server_url + "/game/play/" + str(play_id) + ".json")
+
             if response.status_code == 404:
                 print("\nCould not retrieve play result.")
                 continue
@@ -193,6 +220,7 @@ def main():
             print("\nPlease enter a valid command. Enter '?' to see the list of possible commands")
 
 
+# sends play move to server and prints appropriate statements depending on the response
 def send_play(url, play_id, player, move):
     response = requests.post(url + "/game/play", params={"id": play_id, "player": player, "move": move})
     if response.status_code == 200:
@@ -208,6 +236,7 @@ def send_play(url, play_id, player, move):
         return False
 
 
+# helper function to get play name by initial if there is one, otherwise returns None
 def get_play_name(initial):
     if initial == "R":
         return "rock"

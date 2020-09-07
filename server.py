@@ -170,7 +170,8 @@ def start_game(connection, address, request):
         game_data = {'player_count': 1,
                      'player_1': {'W': 0, 'L': 0, 'T': 0},
                      'player_2': {'W': 0, 'L': 0, 'T': 0},
-                     'reset': [False, False]}
+                     'reset': [False, False],
+                     'finished_plays': 0}
         with open("game/data.json", "w") as game_file:
             json.dump(game_data, game_file)
 
@@ -278,6 +279,7 @@ def process_play(file_path, play_data):
         game_data = json.load(game_file)
     game_data["player_1"][result[0]] += 1
     game_data["player_2"][result[1]] += 1
+    game_data["finished_plays"] += 1
     with open("game/data.json", "w") as game_file:
         json.dump(game_data, game_file)
 
