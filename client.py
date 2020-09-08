@@ -45,7 +45,7 @@ def main():
                 print("\nYou already have a game in process.")
             continue
 
-        # quit application
+        # quit application - will only allow quit after game is reset
         if input_client.upper() == "Q":
             response = requests.get(server_url + "/game/data.json")
             if response.status_code != 404:
@@ -54,7 +54,7 @@ def main():
             print("\nBye!\n")
             sys.exit()
 
-        # prints commands
+        # prints list of commands
         elif input_client == "?":
             print("\nCommands:\nR - Rock\nP - Paper\nS - Scissors\nGS - Get overall game score\nPR - Get play "
                   "result\nN - Next play\nSTART - Start Game\nRESET - Resets/Ends Game\nQ - Quit\n? - Show Commands")
@@ -84,7 +84,7 @@ def main():
                     print(
                         "\nThe current play is still in progress. Please wait until it's done to go to the next play.")
 
-        # request game score
+        # request game score / results
         elif input_client.upper() == "GS":
             if not game_started:
                 print("\nPlease start a game first.")
@@ -151,7 +151,7 @@ def main():
             if successful_play:
                 play_thrown = True
 
-        # gets play result
+        # gets current play result
         elif input_client.upper() == "PR":
             if not game_started:
                 print("\nPlease start a game first.")
@@ -188,10 +188,12 @@ def main():
                     elif player_result == "T":
                         print("You tied!")
 
+        # command to put in a reset request - if both players have issued a reset request already, it will execute reset
         elif input_client.upper() == "RESET":
             if not game_started:
                 print("\nPlease start a game first.")
                 continue
+            # if a reset request has been sent already, it sends a reset execution to server
             if reset_request_sent:
                 response = requests.delete(server_url + "/game")
                 if response.status_code == 200:
@@ -205,6 +207,7 @@ def main():
                     print("The game can only be reset if both players request a game reset.")
                     print("Please try again later or wait until your opponent has executed a reset.")
                     continue
+            # if a reset request hasn't yet been issued, it triggers this functionality
             else:
                 response = requests.patch(server_url + "/game", params={"player": str(player_id), "reset": True})
                 if response.status_code == 200:
