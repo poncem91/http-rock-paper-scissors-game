@@ -116,10 +116,10 @@ def main():
             print("Play", (play_id + 1), play_status)
 
             # if game has ended, it prints the overall result of the game (best of 3)
-            if play_status == "completed" and play_id == 2:
+            if play_status == "completed" and play_id >= 2:
                 if current_player_score["W"] > opponent_player_score["W"]:
                     print("\nYou won the game!")
-                if current_player_score["W"] < opponent_player_score["W"]:
+                elif current_player_score["W"] < opponent_player_score["W"]:
                     print("\nYou lost the game...")
                 else:
                     print("\nThe game was tied.")
@@ -180,7 +180,8 @@ def main():
                 else:
                     player_result = play_results["result"][int(player_id) - 1]
 
-                    print("\nYou threw " + player_move + " and your opponent threw " + opponent_move + "...")
+                    print("\nPlay #", str(play_id + 1), "results:")
+                    print("You threw " + player_move + " and your opponent threw " + opponent_move + "...")
                     if player_result == "W":
                         print("You won!")
                     elif player_result == "L":
@@ -207,6 +208,16 @@ def main():
                     print("The game can only be reset if both players request a game reset.")
                     print("Please try again later or wait until your opponent has executed a reset.")
                     continue
+                # if game file isn't found then the reset was successfully executed by the opponent
+                # and so it processes this situation accordingly
+                elif response.status_code == 404:
+                    print("\nNo record of the game you requested to reset has been found.")
+                    print("The game may have been reset already.")
+                    print("\nPlease use the 'START' command to start a new game.")
+                    game_started = False
+                    reset_request_sent = False
+                    play_thrown = False
+                    play_id = 0
             # if a reset request hasn't yet been issued, it triggers this functionality
             else:
                 response = requests.patch(server_url + "/game", params={"player": str(player_id), "reset": True})
