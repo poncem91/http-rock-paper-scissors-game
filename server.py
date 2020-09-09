@@ -6,16 +6,11 @@ import sys
 from _thread import *
 
 RESPONSE_OK_HEADER = "HTTP/1.1 200 OK\r\n"
-RESPONSE_TEXT_CONTENT_HEADER = "Content-Type: text/html\r\n"
-RESPONSE_JSON_CONTENT_HEADER = "Content-Type: application/json\r\n"
-RESPONSE_CONTENT_LENGTH_HEADER = "Content-Length: "
-RESPONSE_END_HEADERS = "\r\n\r\n"
-RESPONSE_CONFLICT = "HTTP/1.1 409 Conflict\r\n" + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + "0" \
-                    + RESPONSE_END_HEADERS
-RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n" + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + "0" \
-                     + RESPONSE_END_HEADERS
-RESPONSE_BAD_REQUEST = "HTTP/1.1 400 Bad Request\r\n" + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER \
-                       + "0" + RESPONSE_END_HEADERS
+RESPONSE_TEXT_CONTENT_HEADER = "Content-Type: text/html\r\n\r\n"
+RESPONSE_JSON_CONTENT_HEADER = "Content-Type: application/json\r\n\r\n"
+RESPONSE_CONFLICT = "HTTP/1.1 409 Conflict\r\nContent-Type: text/html\r\n\r\n"
+RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n\r\n"
+RESPONSE_BAD_REQUEST = "HTTP/1.1 400 Bad Request\r\n\r\n"
 
 
 def main():
@@ -72,8 +67,7 @@ def client_thread(connection, player_address):
             # one player currently in the game
             if game_data["reset"][0] and game_data["reset"][1] or game_data["player_count"] <= 1:
                 clear_game_data()
-                response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + "0" \
-                           + RESPONSE_END_HEADERS
+                response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER
                 connection.sendall(response.encode("utf-8"))
                 connection.close()
                 print_server_log(player_address, client_request, response)
@@ -112,8 +106,7 @@ def client_thread(connection, player_address):
             with open("game/data.json", "w") as game_file:
                 json.dump(game_data, game_file)
 
-            response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + "0" \
-                       + RESPONSE_END_HEADERS
+            response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER
             connection.sendall(response.encode("utf-8"))
             connection.close()
             print_server_log(player_address, client_request, response)
@@ -189,18 +182,17 @@ def start_game(connection, address, request):
 
         # only allows a maximum of 2 players
         if game_data["player_count"] >= 2:
-            connection.sendall(RESPONSE_CONFLICT.encode("utf-8"))
+            response = RESPONSE_CONFLICT + "Too many connected players."
+            connection.sendall(response.encode("utf-8"))
             connection.close()
-            print_server_log(address, request, RESPONSE_CONFLICT)
+            print_server_log(address, request, response)
             return
 
         with open("game/data.json", "w") as game_file:
             game_data["player_count"] += 1
             json.dump(game_data, game_file)
 
-    body_length = len(str(game_data["player_count"]).encode("utf-8"))
-    response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + str(body_length) \
-               + RESPONSE_END_HEADERS + str(game_data["player_count"])
+    response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + str(game_data["player_count"])
     connection.sendall(response.encode("utf-8"))
     connection.close()
     print_server_log(address, request, response)
@@ -240,8 +232,7 @@ def make_move(connection, address, request, params):
         print("Current play updated to... ", end='')
         print(play_data["moves"])
 
-        response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + "0" \
-                   + RESPONSE_END_HEADERS
+        response = RESPONSE_OK_HEADER + RESPONSE_TEXT_CONTENT_HEADER
         connection.sendall(response.encode("utf-8"))
         connection.close()
         print_server_log(address, request, response)
@@ -305,12 +296,11 @@ def send_file(connection, address, request, file_path):
     with open(file_path, "r") as play_file:
         data_file = json.load(play_file)
 
-    body_length = len(json.dumps(data_file).encode("utf-8"))
-    response = RESPONSE_OK_HEADER + RESPONSE_JSON_CONTENT_HEADER + RESPONSE_CONTENT_LENGTH_HEADER + str(body_length) \
-               + RESPONSE_END_HEADERS + json.dumps(data_file)
+    response = RESPONSE_OK_HEADER + RESPONSE_JSON_CONTENT_HEADER + json.dumps(data_file)
     connection.sendall(response.encode("utf-8"))
     connection.close()
     print_server_log(address, request, response)
+
 
 
 if __name__ == "__main__":
