@@ -220,7 +220,7 @@ def main():
                     play_id = 0
             # if a reset request hasn't yet been issued, it triggers this functionality
             else:
-                response = requests.patch(server_url + "/game", params={"player": str(player_id), "reset": True})
+                response = requests.patch(server_url + "/game", params={"player": str(player_id)}, data={"reset": True})
                 if response.status_code == 200:
                     print("\nYour game reset request has been issued.")
                     reset_request_sent = True
@@ -236,7 +236,7 @@ def main():
 
 # sends play move to server and prints appropriate statements depending on the response
 def send_play(url, play_id, player, move):
-    response = requests.post(url + "/game/play", params={"id": play_id, "player": player, "move": move})
+    response = requests.post(url + "/game/play/" + str(play_id) + ".json", params={"player": player}, data={"move": move})
     if response.status_code == 200:
         if move == "R":
             print("\nYou threw rock!")

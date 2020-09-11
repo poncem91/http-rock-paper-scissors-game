@@ -96,8 +96,8 @@ def client_thread(connection, player_address):
             try:
                 params = full_request_url.split("?")[1].split("&")
                 player_id = params[0].split("=")[1]
-                key = params[1].split("=")[0]
-                value = params[1].split("=")[1]
+                key = client_request.split("\r\n\r\n")[1].split("=")[0]
+                value = client_request.split("\r\n\r\n")[1].split("=")[1]
             except IndexError:
                 connection.sendall(RESPONSE_BAD_REQUEST.encode("utf-8"))
                 connection.close()
@@ -127,16 +127,17 @@ def client_thread(connection, player_address):
     # handles requests for /game/play/{play_id}.json
     elif "/game/play" in request_url:
 
-        # handles POST /game/play/{play_id}.json requests to make a play move
+        # handles POST /game/play/{playid}.json requests to make a play move for the specific player
         if request_method == "POST":
             try:
                 params = full_request_url.split("?")[1].split("&")
+                move = client_request.split("\r\n\r\n")[1].split("=")[1]
             except IndexError:
                 connection.sendall(RESPONSE_BAD_REQUEST.encode("utf-8"))
                 connection.close()
                 print_server_log(player_address, client_request, RESPONSE_BAD_REQUEST)
                 return
-            make_move(connection, player_address, client_request, params)
+            make_move(connection, player_address, client_request, request_url, params, move)
             return
 
         # handles GET /game/play/{play_id}.json requests to get play file
@@ -207,18 +208,16 @@ def start_game(connection, address, request):
 
 
 # makes and saves play move
-def make_move(connection, address, request, params):
+def make_move(connection, address, request, request_url, params, move):
     try:
-        play_id = params[0].split("=")[1]
-        player_id = int(params[1].split("=")[1])
-        move = params[2].split("=")[1]
+        player_id = int(params[0].split("=")[1])
     except IndexError:
         connection.sendall(RESPONSE_BAD_REQUEST.encode("utf-8"))
         connection.close()
         print_server_log(address, request, RESPONSE_BAD_REQUEST)
         return
 
-    file_path = "game/play/" + play_id + ".json"
+    file_path = request_url[1:]
 
     # retrieves play data if existing file exists, otherwise creates a new play data
     if os.path.isfile(file_path):
