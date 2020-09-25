@@ -1,4 +1,4 @@
-# Networks PA1 - HTTP Server-Client Rock-Paper-Scissors Game
+# HTTP Server-Client Rock-Paper-Scissors Game
 
 A client-server implementation of the rock paper scissors game implemented in Python where client and server communicate via HTTP messages only.
  
